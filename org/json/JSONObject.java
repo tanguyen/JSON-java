@@ -34,8 +34,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -171,7 +171,7 @@ public class JSONObject {
       // implementations to rearrange their items for a faster element 
       // retrieval based on associative access.
       // Therefore, an implementation mustn't rely on the order of the item.
-      this.map = new HashMap<String, Object>();
+      this.map = new LinkedHashMap<String, Object>(); // @TA preserved Order
    }
 
    /**
@@ -258,9 +258,9 @@ public class JSONObject {
     */
    public JSONObject(Map<?, ?> m) {
       if (m == null) {
-         this.map = new HashMap<String, Object>();
+         this.map = new LinkedHashMap<String, Object>(); // @TA preserved Order
       } else {
-         this.map = new HashMap<String, Object>(m.size());
+         this.map = new LinkedHashMap<String, Object>(m.size());
          for (final Entry<?, ?> e : m.entrySet()) {
             final Object value = e.getValue();
             if (value != null) {
@@ -388,7 +388,7 @@ public class JSONObject {
     * @param initialCapacity initial capacity of the internal map.
     */
    protected JSONObject(int initialCapacity) {
-      this.map = new HashMap<String, Object>(initialCapacity);
+      this.map = new LinkedHashMap<String, Object>(initialCapacity); // @TA preserved Order
    }
 
    /**
@@ -1536,7 +1536,8 @@ public class JSONObject {
          testValidity(value);
          this.map.put(key, value);
       } else {
-         this.remove(key);
+         this.map.put(key, null); // @TA Allow Null
+         //this.remove(key);
       }
       return this;
    }
@@ -2267,7 +2268,7 @@ public class JSONObject {
     * @return a java.util.Map containing the entries of this object
     */
    public Map<String, Object> toMap() {
-      Map<String, Object> results = new HashMap<String, Object>();
+      Map<String, Object> results = new LinkedHashMap<String, Object>(); // @TA preserved Order
       for (Entry<String, Object> entry : this.entrySet()) {
          Object value;
          if (entry.getValue() == null || NULL.equals(entry.getValue())) {

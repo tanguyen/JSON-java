@@ -1,5 +1,7 @@
 package org.json;
 
+import java.util.Arrays;
+
 /*
 Copyright (c) 2015 JSON.org
 
@@ -25,44 +27,95 @@ SOFTWARE.
 */
 
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
- * This provides static methods to convert an XML text into a JSONObject, and to
- * covert a JSONObject into an XML text.
+ * This provides static methods to convert an XML text into a JSONObject,
+ * and to covert a JSONObject into an XML text.
  * 
+ * XML.AUTO_DETECT = (json to xml) [False:Default, True:To automatically detect '_attributes' and '_text_' tokens]
+ * XML.PREFIX(prefix, text) = (method) change the default prefix and text token
+ * 
+ * Valid Prefixes = [XML.UNDER, XML.AT, XML.BUCK, XML.HASH]
+ * Recommended Text Token = ["text", "TEXT"], but anything goes, final text will be: 
+ *      {PREFIX}+TEXT+{PREFIX} = example: "_text_"
+ *      Must avoid xml element name or attribute result in the same TEXT token as above. 
+ *      
  * @author JSON.org
  * @version 2016-08-10
  */
-@SuppressWarnings("boxing")
+//@SuppressWarnings("boxing")
 public class XML {
-   /** The Character '&amp;'. */
    public static final Character AMP = '&';
-
-   /** The Character '''. */
    public static final Character APOS = '\'';
-
-   /** The Character '!'. */
    public static final Character BANG = '!';
-
-   /** The Character '='. */
    public static final Character EQ = '=';
-
-   /** The Character '>'. */
    public static final Character GT = '>';
-
-   /** The Character '&lt;'. */
    public static final Character LT = '<';
-
-   /** The Character '?'. */
    public static final Character QUEST = '?';
-
-   /** The Character '"'. */
    public static final Character QUOT = '"';
-
-   /** The Character '/'. */
    public static final Character SLASH = '/';
 
+   // For Attributes & text Prefixes
+   public static final Character UNDER = '_';
+   public static final Character AT = '@';
+   public static final Character BUCK = '$';
+   public static final Character HASH = '#';
+
+   public static enum Prefix {
+      UNDER(XML.UNDER), AT(XML.AT), BUCK(XML.BUCK), HASH(XML.HASH);
+
+      private final Character name;
+
+      private Prefix(Character name) {
+         this.name = name;
+      }
+
+      public boolean equals(Character otherName) {
+         return name.equals(otherName);
+      }
+
+      public String toString() {
+         return name.toString();
+      }
+   };
+
+   /*
+    * AUTO_DETECT: turn this option on to automatically detect XML.toString() {from JSON}
+    *   * for the following keys:
+    *     1. TEXT as ["_text_", "@text@", "$text$", "#text#", "_TEXT_", "@TEXT@", "$TEXT$", "#TEXT#"]
+    *     2. Attribute PREFIX as [XML.UNDER, XML.AT, XML.BUCK, XML.HASH]
+    */
+   public static Boolean AUTO_DETECT;
+
+   private static Prefix PREFIX = Prefix.UNDER; // Example: _, @, $, # ...
+   private static String _TEXT = "text"; // Default
+   private static String TEXT = PREFIX + _TEXT + PREFIX; // Example _text_, @text@, $text$, #text#, _TEXT_, @TEXT@, $TEXT$, #TEXT# ... 
+   private static Set<String> TEXTS = new LinkedHashSet<String>(Arrays.asList(new String[] { "_text_", "@text@", "$text$", "#text#", "_TEXT_", "@TEXT@", "$TEXT$", "#TEXT#" }));
+
+   /*
+    * PREFIX: set the Attribute Prefix and Optionally set the "text" token
+    */
+   public static void PREFIX(Prefix prefix, String... text) {
+      // if valid prefix, set it as new default
+      if (prefix != null)
+         PREFIX = prefix;
+      if (text != null && text.length > 0) {
+         // if text set, store it 
+         _TEXT = text[0];
+         if (!TEXTS.contains(PREFIX + _TEXT + PREFIX))
+            TEXTS.add(PREFIX + _TEXT + PREFIX);
+         if (!TEXTS.contains(PREFIX + _TEXT.toLowerCase() + PREFIX))
+            TEXTS.add(PREFIX + _TEXT.toLowerCase() + PREFIX);
+         if (!TEXTS.contains(PREFIX + _TEXT.toUpperCase() + PREFIX))
+            TEXTS.add(PREFIX + _TEXT.toUpperCase() + PREFIX);
+      }
+      // generate the new TEXT token.
+      TEXT = PREFIX + _TEXT + PREFIX;
+   }
+   
    /**
     * Creates an iterator for navigating Code Points in a string instead of
     * characters. Once Java7 support is dropped, this can be replaced with
@@ -291,7 +344,9 @@ public class XML {
                if (x.next() == '[') {
                   string = x.nextCDATA();
                   if (string.length() > 0) {
-                     context.accumulate("content", string);
+                     // XXX @TA Nguyen Supporting Simple XML to JSON and back
+                     //context.accumulate("content", string);
+                     context.accumulate(TEXT, string);
                   }
                   return false;
                }
@@ -353,10 +408,14 @@ public class XML {
                   if (!(token instanceof String)) {
                      throw x.syntaxError("Missing value");
                   }
-                  jsonobject.accumulate(string, keepStrings ? unescape((String) token) : stringToValue((String) token));
+                  // XXX @TA Nguyen Supporting Simple XML to JSON and back
+                  //jsonobject.accumulate(string, keepStrings ? unescape((String) token) : stringToValue((String) token));
+                  jsonobject.accumulate(PREFIX + string, keepStrings ? unescape((String) token) : stringToValue((String) token));
                   token = null;
                } else {
-                  jsonobject.accumulate(string, "");
+                  // XXX @TA Nguyen Supporting Simple XML to JSON and back
+                  //jsonobject.accumulate(string, "");
+                  jsonobject.accumulate(PREFIX + string, "");
                }
 
             } else if (token == SLASH) {
@@ -383,7 +442,9 @@ public class XML {
                   } else if (token instanceof String) {
                      string = (String) token;
                      if (string.length() > 0) {
-                        jsonobject.accumulate("content", keepStrings ? unescape(string) : stringToValue(string));
+                        // XXX @TA Nguyen Supporting Simple XML to JSON and back
+                        //jsonobject.accumulate("content", keepStrings ? unescape(string) : stringToValue(string));
+                        jsonobject.accumulate(TEXT, keepStrings ? unescape(string) : stringToValue(string));
                      }
 
                   } else if (token == LT) {
@@ -391,8 +452,12 @@ public class XML {
                      if (parse(x, jsonobject, tagName, keepStrings)) {
                         if (jsonobject.length() == 0) {
                            context.accumulate(tagName, "");
-                        } else if (jsonobject.length() == 1 && jsonobject.opt("content") != null) {
-                           context.accumulate(tagName, jsonobject.opt("content"));
+                        // XXX @TA Nguyen Supporting Simple XML to JSON and back
+                        //} else if (jsonobject.length() == 1 && jsonobject.opt("content") != null) {
+                        } else if (jsonobject.length() == 1 && jsonobject.opt(TEXT) != null) {
+                           // XXX @TA Nguyen Supporting Simple XML to JSON and back
+                           //context.accumulate(tagName, jsonobject.opt("content"));
+                           context.accumulate(tagName, jsonobject.opt(TEXT));
                         } else {
                            context.accumulate(tagName, jsonobject);
                         }
@@ -506,6 +571,29 @@ public class XML {
          if (tagName != null) {
             sb.append('<');
             sb.append(tagName);
+            
+            // XXX @TA Nguyen Supporting Simple XML to JSON and back
+            // XXX - special hack by T.A. Nguyen to allow 
+            // _abc as attribute
+            // _text_ as content values if the element also have other children
+            Object value;
+            String key;
+            Iterator<String> keys;
+            jo = (JSONObject) object;
+            keys = jo.keys();
+            
+            while (keys.hasNext()) {
+               key = keys.next().toString();
+               value = jo.opt(key);
+               if (value == null) {
+                  value = "";
+               }
+               if (isATTR(key)) { // attribute
+                  sb.append(" ").append(key.substring(1)).append("=\"").append(escape(value.toString())).append("\"");
+               }
+            }
+            // XXX @TA Nguyen Supporting Simple XML to JSON and back
+            
             sb.append('>');
          }
 
@@ -513,55 +601,61 @@ public class XML {
          jo = (JSONObject) object;
          for (final Entry<String, ?> entry : jo.entrySet()) {
             final String key = entry.getKey();
-            Object value = entry.getValue();
-            if (value == null) {
-               value = "";
-            } else if (value.getClass().isArray()) {
-               value = new JSONArray(value);
-            }
+            
+            // XXX @TA Nguyen Supporting Simple XML to JSON and back
+            if (!isATTR(key)) {
+               Object value = entry.getValue();
+               if (value == null) {
+                  value = "";
+               } else if (value.getClass().isArray()) {
+                  value = new JSONArray(value);
+               }
 
-            // Emit content in body
-            if ("content".equals(key)) {
-               if (value instanceof JSONArray) {
-                  ja = (JSONArray) value;
-                  int i = 0;
-                  for (Object val : ja) {
-                     if (i > 0) {
-                        sb.append('\n');
+               // Emit content in body
+               // XXX @TA Nguyen Supporting Simple XML to JSON and back
+               //if ("content".equals(key)) {
+               if (isTEXT(key)) {
+                  if (value instanceof JSONArray) {
+                     ja = (JSONArray) value;
+                     int i = 0;
+                     for (Object val : ja) {
+                        if (i > 0) {
+                           sb.append('\n');
+                        }
+                        sb.append(escape(val.toString()));
+                        i++;
                      }
-                     sb.append(escape(val.toString()));
-                     i++;
-                  }
-               } else {
-                  sb.append(escape(value.toString()));
-               }
-
-               // Emit an array of similar keys
-
-            } else if (value instanceof JSONArray) {
-               ja = (JSONArray) value;
-               for (Object val : ja) {
-                  if (val instanceof JSONArray) {
-                     sb.append('<');
-                     sb.append(key);
-                     sb.append('>');
-                     sb.append(toString(val));
-                     sb.append("</");
-                     sb.append(key);
-                     sb.append('>');
                   } else {
-                     sb.append(toString(val, key));
+                     sb.append(escape(value.toString()));
                   }
+
+                  // Emit an array of similar keys
+
+               } else if (value instanceof JSONArray) {
+                  ja = (JSONArray) value;
+                  for (Object val : ja) {
+                     if (val instanceof JSONArray) {
+                        sb.append('<');
+                        sb.append(key);
+                        sb.append('>');
+                        sb.append(toString(val));
+                        sb.append("</");
+                        sb.append(key);
+                        sb.append('>');
+                     } else {
+                        sb.append(toString(val, key));
+                     }
+                  }
+               } else if ("".equals(value)) {
+                  sb.append('<');
+                  sb.append(key);
+                  sb.append("/>");
+
+                  // Emit a new tag <k>
+
+               } else {
+                  sb.append(toString(value, key));
                }
-            } else if ("".equals(value)) {
-               sb.append('<');
-               sb.append(key);
-               sb.append("/>");
-
-               // Emit a new tag <k>
-
-            } else {
-               sb.append(toString(value, key));
             }
          }
          if (tagName != null) {
@@ -593,5 +687,30 @@ public class XML {
       string = (object == null) ? "null" : escape(object.toString());
       return (tagName == null) ? "\"" + string + "\"" : (string.length() == 0) ? "<" + tagName + "/>" : "<" + tagName + ">" + string + "</" + tagName + ">";
 
+   }
+
+   private static boolean isTEXT(String key) {
+      if (key == null || key.length() < 1)
+         return false;
+
+      if (AUTO_DETECT != null && AUTO_DETECT.equals(Boolean.TRUE)) {
+         for (String txt : TEXTS) {
+            if (txt.equals(key))
+               return true;
+         }
+      }
+      return TEXT.equals(key);
+   }
+
+   private static boolean isATTR(String key) {
+      if (key == null || key.length() < 1 || isTEXT(key))
+         return false;
+
+      Character k = key.charAt(0);
+      if (AUTO_DETECT != null && AUTO_DETECT.equals(Boolean.TRUE) && key != null) {
+         if (k.equals(XML.UNDER) || k.equals(XML.AT) || k.equals(XML.BUCK) || k.equals(XML.HASH))
+            return true;
+      }
+      return PREFIX.equals(k);
    }
 }
